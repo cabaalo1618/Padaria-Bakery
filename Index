@@ -1,0 +1,168 @@
+''' Sistema interno - Padaria-Producao'''
+'''gerenciador de gastos, gerador de relatorios e graficos LucroVSTempo'''
+
+
+import tkinter as tk
+from PIL import Image, ImageTk
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from datetime import date
+from tkinter import filedialog, simpledialog
+import csv
+from matplotlib import pyplot as plt
+
+
+#-------------------------------------------------------------
+janela = tk.Tk()
+janela.title('Orcamentacao de Padaria')
+janela.config(bg="light blue",padx=10,pady=20)
+#-------------------------------------------------------------
+
+
+def escolher_diretorio():
+    resposta = ativar_botao()
+    if resposta:
+        pasta_destino = filedialog.askdirectory()
+        if pasta_destino:
+            nome_arquivo = simpledialog.askstring(
+                "Nome do aquivo", "Nome")
+            if nome_arquivo:
+                data_atual = date.today()
+                caminho_arquivo = f"{pasta_destino}/{nome_arquivo}_{data_atual}.pdf"
+                gerar_relatorio_pdf(resposta,caminho_arquivo)
+
+
+def gerar_relatorio_pdf(resposta, caminho_arquivo):
+    data_relatorio = date.today()
+    pdf = canvas.Canvas(caminho_arquivo, pagesize=letter)
+    font_size = 20
+    font_size2 = 34
+    x, y = 50, 800
+    pdf.setFont("Helvetica-Bold", font_size2)
+    pdf.drawString(x, y, f"Relatorio do dia {data_relatorio}")
+    y -= 20
+    pdf.setFont("Helvetica", font_size)
+    for linha in resposta.split('\n'):
+        pdf.drawString(x, y, linha)
+        y -= 15
+    pdf.save()
+
+def salvar_dados_csv(quantidade, lucro):
+    data_atual = date.today().strftime("%Y-%m-%d")
+    nome_arquivo = "dados_padaria.csv"
+    with open(nome_arquivo, mode='a', newline='') as arquivo:
+        escritor = csv.writer(arquivo)
+        escritor.writerow([data_atual, quantidade, lucro])
+
+def ativar_botao():
+    data_do_relatorio=date.today()
+    # quantidade encomendada:
+    quantidade = int(entrada_quantidade.get())
+    # receita 100 unidades de pao frances:
+    farinha = float(3.32)
+    oleo = float(1.25)
+    sal = float(0.023)
+    acucar = float(0.25)
+    forno = float(7.00)
+    mao_de_obra = float(2.00)
+    perdas_e_danos = float(0.02)
+    eletricidade_da_masseira = float(3.30)
+    # proporcoes
+    pao_de_sal_100_unidades = [farinha, oleo, sal,acucar, forno, mao_de_obra, perdas_e_danos]
+    pao_de_sal_1_unidade = float((sum(pao_de_sal_100_unidades)/100))
+    # Lucro obtido por lote:
+    lucro = float(pao_de_sal_1_unidade*3)
+    # calculos:
+    valor_total = float(pao_de_sal_1_unidade*quantidade)
+    total_gasto_com_ingredientes = float(quantidade*(farinha+oleo+sal+acucar)/100)
+    total_gasto_com_mao_de_obra = float(mao_de_obra*quantidade/100)
+    total_gasto_com_energia = float(eletricidade_da_masseira*quantidade/100)
+    total_gasto_com_gas = float(forno*quantidade/100)
+    total_lucrado = float(lucro*quantidade/3)
+    total_perdas_danos = float(perdas_e_danos*quantidade/100)
+
+    # exibicao da resposta:
+    resposta = str('\n'+20*'-=-'+'\n'+f'Relatorio do dia {data_do_relatorio} '+'\n'+f'O gasto com ingredientes foi de R$ {total_gasto_com_ingredientes:.2f}'+'\n'+f'O gasto com mao de obra foi R${total_gasto_com_mao_de_obra:.2f}'+'\n'+f'O gasto com energia foi R${total_gasto_com_energia:.2f}'+'\n' +
+                   f'O total gasto com gas foi R${total_gasto_com_gas:.2f}'+'\n'+20*'-=-'+'\n'+f'----O total gasto na producao foi R${valor_total}'+'\n'+f'----O lucro obtido foi de R${total_lucrado:.2f}'+'\n'+f'----O prejuizo com Perdas e Danos foi {total_perdas_danos:.2f}'+'\n'+20*'-=-')
+
+    mostrar_resposta = tk.Label(janela, text=resposta)
+    mostrar_resposta.pack()
+    salvar_dados_csv(quantidade, total_lucrado)
+    return resposta
+
+def ler_dados_csv():
+    try:
+        with open('dados_padaria.csv', 'r') as arquivo:
+            leitor = csv.reader(arquivo)
+            dados = list(leitor)
+            return dados
+    except FileNotFoundError:
+        return []
+
+def gerar_grafico():
+    dados = ler_dados_csv()
+    if not dados:
+        return
+
+    quantidade_chart = []
+    total_lucrado_chart = []
+    coeficiente_rendimento = []
+
+    for linha in dados:
+        data_str, quantidade_str, lucro_str = linha
+        data = date.fromisoformat(data_str)
+        quantidade = int(quantidade_str)
+        lucro = float(lucro_str)
+        coeficiente = lucro / quantidade
+
+        quantidade_chart.append(data.strftime("d%m%y"))
+        total_lucrado_chart.append(lucro)
+        coeficiente_rendimento.append(coeficiente)
+
+    # Plotar o gráfico de linha
+    plt.plot(quantidade_chart, coeficiente_rendimento, marker='o', linestyle='-', color='b')
+
+    # Definir rótulos dos eixos e título do gráfico
+    plt.xlabel('Tempo')
+    plt.ylabel('Lucro/Quantidade')
+    plt.title('Rendimento ao longo do tempo')
+
+    # Exibir o gráfico
+    plt.show()
+
+#Boas vindas e data
+data_hoje=date.today()
+label_boas_vindas=tk.Label(janela,text=("Bem Vindo ao Gerenciador de Producao"+"\n"+f"Hoje eh dia {data_hoje}"),font=("Colibri",12),)
+label_boas_vindas.grid(row=0,column=0,columnspan=2)
+label_boas_vindas.pack(pady=5)
+
+#Imagem
+caminho_da_imagem="C:/Users/Acer/Desktop/Repositorio_e_Projetos/Analisador_de_Receitas/icon/img512.png"
+imagem_pil=Image.open(caminho_da_imagem)
+largura,altura=(92,92)
+filtro = Image.ANTIALIAS
+imagem_tamanho_certo=imagem_pil.resize((largura,altura),filtro)
+imagem_tK=ImageTk.PhotoImage(imagem_tamanho_certo)
+
+label_imagem=tk.Label(janela,image=imagem_tK)
+label_imagem.pack(pady=5)
+
+# Entrada da quantidade
+label_quantidade = tk.Label(janela, text="Insira a quantidade a ser produzida: ")
+label_quantidade.config(bg="gray",font=("Colibri",14),fg="white")
+label_quantidade.pack(side="top",pady=5,padx=9)
+entrada_quantidade = tk.Entry(janela)
+entrada_quantidade.pack(pady=5)
+
+# Botao calcular
+botao_calcular = tk.Button(janela, text='Calcular', command=ativar_botao,font=("Colibri",14),bg="black",fg="white")
+botao_calcular.pack(pady=5,padx=9)
+
+#botao relatorio
+gerar_relatorio = tk.Button(janela, text="Gerar Relatorio em PDF", command=escolher_diretorio,font=("Colibri",14),bg="black",fg="white")
+gerar_relatorio.pack(pady=5,padx=9)
+
+botao_grafico=tk.Button(janela,text="Grafico de Rendimento",command=gerar_grafico,font=("Colibri",14),bg="black",fg="white")
+botao_grafico.pack()
+
+janela.mainloop()
